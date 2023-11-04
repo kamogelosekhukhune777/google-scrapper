@@ -1,10 +1,12 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/PuerkitoBio/goquery"
 )
@@ -37,7 +39,7 @@ func scrapeClientRequest(searchURL string, proxyString interface{}) (*http.Respo
 
 	res, err := baseClient.Do(req)
 	if res.StatusCode != 200 {
-		fmt.Errorf("scrapper received a non 200 status code, suggesting a ban")
+		err := errors.New("scrapper received a non 200 status code, suggesting a ban")
 		return nil, err
 	}
 	if err != nil {
@@ -66,7 +68,7 @@ type SearchResult struct {
 }
 
 // googleResultParsing parse the response body from server
-func googleResultParsing(response http.Response, rank int) ([]SearchResult, error) {
+func googleResultParsing(response *http.Response, rank int) ([]SearchResult, error) {
 	doc, err := goquery.NewDocumentFromReader(response.Body)
 	if err != nil {
 		return nil, err
@@ -98,4 +100,38 @@ func googleResultParsing(response http.Response, rank int) ([]SearchResult, erro
 	}
 
 	return results, nil
+}
+
+func GoogleScrape(searchTerm, countryCode, languageCode string, proxyString interface{}, pages, count, backoff int) ([]SearchResult, error) {
+	results := []SearchResult{}
+	resultCounter := 0
+	googlePages, err := bulidGoogleUrls(searchTerm, countryCode, languageCode, pages, count)
+	if err != nil {
+		return results, err
+	}
+	for _, page := range googlePages {
+		res, err := scrapeClientRequest(page, proxyString)
+		if err != nil {
+			return results, err
+		}
+		data, err := googleResultParsing(res, resultCounter)
+		if err != nil {
+			return results, err
+		}
+		resultCounter += len(data)
+		results = append(results, data...)
+
+		time.Sleep(time.Duration(backoff) * time.Second)
+	}
+
+	return results, nil
+}
+
+func main() {
+	res, err := GoogleScrape("searchTerm", "com", "en", nil, 1, 30, 10)
+	if err == nil {
+		for _, res := range res {
+			fmt.Println(res)
+		}
+	}
 }
