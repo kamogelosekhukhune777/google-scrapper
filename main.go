@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/PuerkitoBio/goquery"
 )
 
 // buildGoogleUrls builds the google searchUrl,
@@ -45,6 +47,7 @@ func scrapeClientRequest(searchURL string, proxyString interface{}) (*http.Respo
 	return res, nil
 }
 
+// getScrape creates/replicates client user agent
 func getScrapeClient(proxyString interface{}) *http.Client {
 	switch v := proxyString.(type) {
 	case string:
@@ -53,4 +56,46 @@ func getScrapeClient(proxyString interface{}) *http.Client {
 	default:
 		return &http.Client{}
 	}
+}
+
+type SearchResult struct {
+	ResultRank  int
+	ResultURL   string
+	ResultTitle string
+	ResultDesc  string
+}
+
+// googleResultParsing parse the response body from server
+func googleResultParsing(response http.Response, rank int) ([]SearchResult, error) {
+	doc, err := goquery.NewDocumentFromReader(response.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	results := []SearchResult{}
+	sel := doc.Find("div.g")
+	rank++
+	for i := range sel.Nodes {
+		item := sel.Eq(i)
+		linkTag := item.Find("a")
+		link, _ := linkTag.Attr("href")
+		titleTag := item.Find("h3.r")
+		descTag := item.Find("span.st")
+		desc := descTag.Text()
+		title := titleTag.Text()
+		link = strings.Trim(link, " ")
+
+		if link != "" && link != "#" && !strings.HasPrefix(link, "/") {
+			result := SearchResult{
+				rank,
+				link,
+				title,
+				desc,
+			}
+			results = append(results, result)
+			rank++
+		}
+	}
+
+	return results, nil
 }
