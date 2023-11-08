@@ -31,9 +31,21 @@ func bulidGoogleUrls(searchTerm, countryCode, languageCode string, pages, count 
 	return toScrape, nil
 }
 
+// getScrape, creates and return an instance of http.Client
+func getScrapeClient(proxyString interface{}) *http.Client {
+	switch v := proxyString.(type) {
+	case string:
+		proxyUrl, _ := url.Parse(v)
+		return &http.Client{Transport: &http.Transport{Proxy: http.ProxyURL(proxyUrl)}}
+	default:
+		return &http.Client{}
+	}
+}
+
 // scrapeClientRequest sends an request to google
 func scrapeClientRequest(searchURL string, proxyString interface{}) (*http.Response, error) {
-	baseClient := getScrapeClient(proxyString)
+	var baseClient *http.Client
+	baseClient = getScrapeClient(proxyString)
 	req, _ := http.NewRequest("GET", searchURL, nil)
 	req.Header.Set("User-Agent", getRandomUserAgent())
 
@@ -47,17 +59,6 @@ func scrapeClientRequest(searchURL string, proxyString interface{}) (*http.Respo
 	}
 
 	return res, nil
-}
-
-// getScrape creates/replicates client user agent
-func getScrapeClient(proxyString interface{}) *http.Client {
-	switch v := proxyString.(type) {
-	case string:
-		proxyUrl, _ := url.Parse(v)
-		return &http.Client{Transport: &http.Transport{Proxy: http.ProxyURL(proxyUrl)}}
-	default:
-		return &http.Client{}
-	}
 }
 
 type SearchResult struct {
